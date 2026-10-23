@@ -40,6 +40,7 @@ class RestCatalogTypeHandler extends BaseCatalogTypeHandler {
   }
 
   @Override
+  @SneakyThrows
   DatasetIdentifier getPrimaryIdentifier(
       SparkSession session,
       Map<String, String> catalogConf,
@@ -54,19 +55,26 @@ class RestCatalogTypeHandler extends BaseCatalogTypeHandler {
       throw new MissingDatasetIdentifierCatalogException(
           "No table location found. Probably needs to create table first");
     }
-    return PathUtils.fromPath(
-        maybeTableLocation.orElseGet(
-            () -> defaultTableLocation(new Path(warehouseLocation), identifier)));
+    DatasetIdentifier datasetIdentifier =
+        PathUtils.fromPath(
+            maybeTableLocation.orElseGet(
+                () -> defaultTableLocation(new Path(warehouseLocation), identifier)));
+
+    String confUri = catalogConf.get(CatalogProperties.URI);
+    datasetIdentifier.withSymlink(
+        new DatasetIdentifier.Symlink(
+            tableCatalog.name() + "." + identifier,
+            new URI(confUri).toString(),
+            DatasetIdentifier.SymlinkType.TABLE));
+
+    return datasetIdentifier;
   }
 
   @Override
-  @SneakyThrows
   Optional<DatasetIdentifier.Symlink> getSymlinkIdentifiers(
       SparkSession session, Map<String, String> catalogConf, String table) {
-    String confUri = catalogConf.get(CatalogProperties.URI);
-    String uri = new URI(confUri).toString();
-    return Optional.of(
-        new DatasetIdentifier.Symlink(table, uri, DatasetIdentifier.SymlinkType.TABLE));
+    // the catalog-qualified TABLE symlink is already attached in getPrimaryIdentifier
+    return Optional.empty();
   }
 
   protected static boolean isRestCatalog(Map<String, String> catalogConf) {
